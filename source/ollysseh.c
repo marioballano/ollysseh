@@ -30,6 +30,10 @@
 #define SAFESEH_ON         1       
 #define NOSEH              2
 
+#define PROTECTION_ON	   1
+#define PROTECTION_OFF	   0
+#define PROTECTION_ERROR		  -1
+
 HINSTANCE hinst;
 HWND      hwmain;
 char      safesehwinclass[32];
@@ -55,6 +59,8 @@ typedef struct
 	DWORD     sseh_enabled;
 	DWORD     nHandlers;
 	t_table   *handlers;
+	BOOL      nx_enabled;
+	BOOL      aslr_enabled;
 } t_sseh;
 
 t_table   safeseh;
@@ -132,7 +138,33 @@ int safesehgettext(char *s,char *mask,int *select, t_sortheader *ph,int column)
 		case 3:
 			retval = sprintf(s,"%s",sseh->modversion);
 			break;
-		case 4:			
+		case 4:
+			switch (sseh->aslr_enabled)
+			{
+				case PROTECTION_ON:
+					retval = sprintf(s, "On");
+					break;
+				case PROTECTION_OFF:
+					retval = sprintf(s, "Off");
+					break;
+				case PROTECTION_ERROR:
+					retval = sprintf(s, "ASLR_ERROR");
+			}
+			break;
+		case 5:
+			switch (sseh->nx_enabled)
+			{
+				case PROTECTION_ON:
+					retval = sprintf(s, "On");
+					break;
+				case PROTECTION_OFF:
+					retval = sprintf(s, "Off");
+					break;
+				case PROTECTION_ERROR:
+					retval = sprintf(s, "ASLR_ERROR");
+			}
+			break;
+		case 6:			
 			retval = sprintf(s,"%s",sseh->blockname);
 									
 	}
@@ -351,18 +383,70 @@ void CreateSafeSehWindow(void)
 		safeseh.bar.defdx[3] = NVERS;
 		safeseh.bar.mode[3]  = BAR_NOSORT;
 
-		safeseh.bar.name[4]  = "Module Name";
-		safeseh.bar.defdx[4] = MAX_PATH;
-		safeseh.bar.mode[4]  = BAR_NOSORT;
+		safeseh.bar.name[4] = "ASLR enabled";
+		safeseh.bar.defdx[4] = 12;
+		safeseh.bar.mode[4] = 0;
 
-		safeseh.bar.nbar = 5;
+		safeseh.bar.name[5] = "NX enabled";
+		safeseh.bar.defdx[5] = 12;
+		safeseh.bar.mode[5] = 0;
+
+		safeseh.bar.name[6]  = "Module Name";
+		safeseh.bar.defdx[6] = MAX_PATH;
+		safeseh.bar.mode[6]  = BAR_NOSORT;
+
+		safeseh.bar.nbar = 7;
 		safeseh.mode= TABLE_COPYMENU|TABLE_SORTMENU|TABLE_APPMENU|TABLE_SAVEPOS|TABLE_ONTOP;	
 		safeseh.drawfunc = safesehgettext;		
 	}		
 
 	// Show it 
 
-	Quicktablewindow(&safeseh,15,5,safesehwinclass,"/SafeSEH Module Scanner");	
+	Quicktablewindow(&safeseh,15,7,safesehwinclass,"/SafeSEH Module Scanner");	
+}
+
+int CheckCharacteristic(t_module *module, int characteristic)
+{
+	LPBYTE    lpHead;
+	int retval = PROTECTION_OFF;
+
+	if ( !(module->headersize > sizeof (IMAGE_DOS_HEADER)) ||
+		 !(lpHead = malloc(module->headersize)) )
+	{
+		return PROTECTION_ERROR;
+	}
+
+	if ( Readmemory(lpHead,module->base,module->headersize, MM_RESTORE | MM_SILENT ) )
+	{
+		PIMAGE_DOS_HEADER              lpDOSh;
+		PIMAGE_NT_HEADERS              lpNTh;
+		PIMAGE_DATA_DIRECTORY          lpDD;
+		PIMAGE_LOAD_CONFIG_DIRECTORY32 lpLCD;
+		DWORD						   *lpHTable;
+
+
+		// Get NT header 
+
+		lpDOSh = (PIMAGE_DOS_HEADER) lpHead;
+		lpNTh  = (PIMAGE_NT_HEADERS) ( (LPBYTE)(lpDOSh) + lpDOSh->e_lfanew );
+		
+		// Check bounds ..
+
+		if  (!IS_CONTAINED(lpNTh,sizeof(IMAGE_NT_HEADERS),lpHead,module->headersize) )
+		{
+			free(lpHead);
+			return PROTECTION_ERROR;
+		}
+
+		if ( lpNTh->OptionalHeader.DllCharacteristics & characteristic )
+		{
+			free(lpHead);
+			return PROTECTION_ON;
+		}
+
+		free(lpHead);
+	}
+	return retval;
 }
 
 int CheckSafeSEH(t_module *module, t_sseh * ssm)
@@ -550,6 +634,8 @@ void ScanModules(void)
 			ssm.limit = module->base + module->size;	
 			ssm.handlers = NULL;
 			ssm.sseh_enabled = CheckSafeSEH(module,&ssm);
+			ssm.aslr_enabled = CheckCharacteristic(module, IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE);
+			ssm.nx_enabled = CheckCharacteristic(module, IMAGE_DLLCHARACTERISTICS_NX_COMPAT);
 			strcpy (ssm.modversion,module->version);
 			strcpy (ssm.blockname, module->path);
 			Addsorteddata(&safeseh.data,&ssm);
