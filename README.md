@@ -4,6 +4,7 @@ This OllyDbg plugin performs an in-memory scan of loaded modules to display some
   
 # References
 
+http://www.openrce.org/downloads/details/244/OllySSEH (original plugin release)
 http://msdn2.microsoft.com/en-us/library/9a89h429(VS.80).aspx
 http://www.microsoft.com/whdc/system/platform/firmware/PECOFF.mspx
 
