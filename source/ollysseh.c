@@ -161,7 +161,7 @@ int safesehgettext(char *s,char *mask,int *select, t_sortheader *ph,int column)
 					retval = sprintf(s, "Off");
 					break;
 				case PROTECTION_ERROR:
-					retval = sprintf(s, "ASLR_ERROR");
+					retval = sprintf(s, "NX_ERROR");
 			}
 			break;
 		case 6:			
