@@ -10,5 +10,5 @@ This OllyDbg plugin performs an in-memory scan of loaded modules to display some
 
 # Greets
 
-* [Ruben Santamarta](from http://www.reversemode.com/), for helping me with an anoying unicode/mdi bug in my Visual Studio project! :-)
+* [Ruben Santamarta](http://www.reversemode.com/), for helping me with an anoying unicode/mdi bug in my Visual Studio project! :-)
 * Poxyran: For implementing ASLR and NX checks.
